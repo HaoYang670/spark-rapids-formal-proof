@@ -1,10 +1,5 @@
-Require Export Coq.ZArith.BinInt.
 Require Export  Coq.Bool.Bool.
 Require Export Coq.Lists.List.
-
-Infix "*" := Z.mul.
-Infix ">=?" := Z.geb (at level 70, no associativity).
-Notation "- x" := (Z.opp x).
 
 Inductive float :=
   | Nan
@@ -17,14 +12,6 @@ Definition CPUge (f1 f2: float): bool :=
   | _, Nan => false
   | Others, Other => true
   end. 
-
-Lemma CPU_Nan_ge_Nan: forall f, 
-  CPUge f Nan = true -> f = Nan.
-Proof.
-  intros f H. destruct f.
-  - reflexivity.
-  - discriminate.
-Qed.
 
 (* Comparision with Nan always leads to false*)
 Definition cuDFge (f1 f2: float): bool := 
@@ -53,28 +40,17 @@ Definition isNan f :=
   | _ => false
   end.
 
-Lemma isNan_refl: forall f,
-  isNan f = true <-> f = Some Nan.
-Proof.
-  intros f. split.
-  - intros H. destruct f.
-    + destruct f.
-      * reflexivity.
-      * discriminate.
-    + discriminate.
-  - intros H. rewrite H. reflexivity.  
-Qed.
-
-Lemma notNan_refl: forall f,
-  isNan f = false <-> f = Some Others.
-Proof.
-  Admitted.
-
 Fixpoint hasNan col := 
   match col with
   | nil => false
   | Some Nan :: _ => true
   | _ :: s => hasNan s
+  end.
+
+Definition GPUmax col :=
+  match (hasNan col) with
+  | true => Some(Nan)
+  | false => cuDFmax col
   end.
 
 Lemma derive_not_has_nan: forall a col,
@@ -86,12 +62,6 @@ Proof.
     + simpl in H. apply H.
   - simpl in H. apply H.
 Qed.
-
-Definition GPUmax col :=
-  match (hasNan col) with
-  | true => Some(Nan)
-  | false => cuDFmax col
-  end.
 
 Lemma some_nan_refl: 
  ~ (Some Nan <> Some Nan).
