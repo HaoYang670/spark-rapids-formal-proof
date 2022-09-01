@@ -9,8 +9,8 @@ Inductive float :=
 Definition CPUge (f1 f2: float): bool := 
   match f1, f2 with
   | Nan, _ => true
-  | _, Nan => false
-  | Others, Other => true
+  | Others, Nan => false
+  | Others, Others => true
   end. 
 
 (* Comparision with Nan always leads to false*)
@@ -21,6 +21,10 @@ Definition cuDFge (f1 f2: float): bool :=
   | Others, Others => true
   end.
 
+(** Give a comparasion function and a column,
+  the function will return the max value.
+  Type: (float -> float -> bool) -> list (option float) -> option float
+  *)
 Fixpoint max (ge: float -> float -> bool) col :=
   match col with
   | nil => None
@@ -53,6 +57,13 @@ Definition GPUmax col :=
   | false => cuDFmax col
   end.
 
+(** All types and functions are defined above.
+  The followings are lemmas and theorms we need
+  to prove.
+  *)
+
+(** if a col doesn't have Nan, 
+  then its tail doesn't have nan *)
 Lemma derive_not_has_nan: forall a col,
   hasNan (a::col) = false -> hasNan col = false.
 Proof.
@@ -71,6 +82,9 @@ Proof.
   - apply contra in H. apply H.
 Qed.
 
+(** For a column that doesn't have nan,
+  the cuDFmax never returns nan
+  *)
 Lemma cuDFmax_no_Nan_to_not_Nan: forall col,
   hasNan col = false -> cuDFmax col <> Some Nan.
 Proof.
@@ -98,23 +112,26 @@ Proof.
       apply H in contra. destruct contra.
 Qed.
 
-Lemma GPU_max_Nan_to_has_Nan: forall col,
-  GPUmax col = Some Nan -> hasNan col = true.
+Lemma GPUmax_is_Nan_hasNan_refl: forall col,
+  GPUmax col = Some Nan <-> hasNan col = true.
 Proof.
-  intros col H. unfold GPUmax in H.
-  destruct (hasNan col) eqn:E.
-  - reflexivity.
-  - apply cuDFmax_no_Nan_to_not_Nan in E.
-    apply E in H. destruct H.
+  intros col. split.
+  - intros H. unfold GPUmax in H.
+    destruct (hasNan col) eqn:E.
+    + reflexivity.
+    + apply cuDFmax_no_Nan_to_not_Nan in E.
+      apply E in H. destruct H.
+  - intros H. unfold GPUmax. rewrite H. reflexivity.
 Qed. 
 
-Lemma GPUmax_not_Nan_to_no_Nan: forall col,
-  GPUmax col <> Some Nan -> hasNan col = false.
+Lemma GPUmax_not_Nan_not_hasNan_refl: forall col,
+  GPUmax col <> Some Nan <-> hasNan col = false.
 Proof.
-  intros col H. unfold GPUmax in H.
-  destruct (hasNan col).
-  - apply some_nan_refl in H. destruct H.
-  - reflexivity.
+  intros col. split.
+  - intros H. rewrite GPUmax_is_Nan_hasNan_refl in H. 
+    apply not_true_is_false. apply H.
+  - intros H. unfold GPUmax. rewrite H.
+    apply cuDFmax_no_Nan_to_not_Nan. apply H.
 Qed.
 
 Lemma cuDFmax_append_None_no_effect: forall col,
@@ -149,13 +166,13 @@ Proof.
           rewrite E. destruct f.
           ++ unfold GPUmax.
             symmetry in IHcol.
-            apply GPU_max_Nan_to_has_Nan in IHcol.
+            apply GPUmax_is_Nan_hasNan_refl in IHcol.
             simpl. rewrite IHcol. reflexivity.
           ++ unfold GPUmax. simpl.
             assert (H: GPUmax col <> Some Nan).
             ** intros contra. rewrite <- IHcol in contra.
               discriminate contra.
-            ** apply GPUmax_not_Nan_to_no_Nan in H.
+            ** apply GPUmax_not_Nan_not_hasNan_refl in H.
               rewrite H. unfold GPUmax in IHcol.
               rewrite H in IHcol.
               unfold cuDFmax. simpl.
@@ -165,7 +182,7 @@ Proof.
           unfold GPUmax. simpl.
           assert (H: GPUmax col <> Some Nan).
           ++ intros contra. rewrite contra in IHcol. discriminate.
-          ++ apply GPUmax_not_Nan_to_no_Nan in H.
+          ++ apply GPUmax_not_Nan_not_hasNan_refl in H.
             rewrite H. unfold cuDFmax. simpl.
             unfold GPUmax in IHcol.
             rewrite H in IHcol. unfold cuDFmax in IHcol.
@@ -173,7 +190,3 @@ Proof.
     + rewrite GPUmax_append_None_no_effect.
       rewrite <- IHcol. unfold CPUmax. reflexivity.
 Qed.
-
-
-
-
